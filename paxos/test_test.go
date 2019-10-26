@@ -20,14 +20,12 @@ func port(tag string, host int) string {
 }
 
 func ndecided(t *testing.T, pxa []*Paxos, seq int) int {
-  //fmt.Println("checking for seq:", seq)
   count := 0
   var v interface{}
   for i := 0; i < len(pxa); i++ {
     if pxa[i] != nil {
       decided, v1 := pxa[i].Status(seq)
       if decided {
-        //fmt.Println(i, "decided")
         if count > 0 && v != v1 {
           t.Fatalf("decided values do not match; seq=%v i=%v v=%v v1=%v",
             seq, i, v, v1)
