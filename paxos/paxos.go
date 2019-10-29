@@ -114,6 +114,7 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 			proposerDataLock.Lock()
 			paxos.mu.Lock()
 			proposerData.ProposalId = (((proposerData.HighestSeenPId / len(paxos.peers)) + 1) * len(paxos.peers)) + paxos.me
+			proposerData.NumPromises = 0
 			proposerData.NumAccepts = 0
 			doneMap := paxos.highestInstanceByPeer
 			paxos.mu.Unlock()
