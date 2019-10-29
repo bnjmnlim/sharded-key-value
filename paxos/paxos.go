@@ -105,7 +105,6 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 		var cont bool
 		cont = true
 		majority := (len(paxos.peers) / 2) + 1 //number needed for majority
-		//negmaj := (len(paxos.peers)+1)/2  //number so that majority can no longer be reached
 
 		for cont {
 			numAttempt++
@@ -115,6 +114,7 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 			proposerDataLock.Lock()
 			paxos.mu.Lock()
 			proposerData.ProposalId = (((proposerData.HighestSeenPId / len(paxos.peers)) + 1) * len(paxos.peers)) + paxos.me
+			proposerData.NumAccepts = 0
 			doneMap := paxos.highestInstanceByPeer
 			paxos.mu.Unlock()
 			proposerDataLock.Unlock()
@@ -142,14 +142,13 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 						} else {
 							if preply.CommittedValue != nil {
 								paxos.mu.Lock()
-								//TODO: paxos.instances[prepareArgs.SeqNum].CommittedValue = preply.CommittedValue
 								var temp = paxos.instances[prepareArgs.SeqNum]
 								temp.CommittedValue = preply.CommittedValue
 								paxos.instances[prepareArgs.SeqNum] = temp
 								paxos.mu.Unlock()
 
-								//Notifying other nodes of committed values in case of partition
-								//TODO: why 3?
+								//Notifying other nodes of committed value so they can give up
+								//Not necessary, but can help if there is a network partition
 								if numAttempt > 3 {
 									for y := 0; y < len(paxos.peers); y++ {
 										go func(c int) {
@@ -182,7 +181,6 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 				}(i) //end of propose thread
 			}
 			proposeWaitGroup.Wait()
-
 			//done with prepare phase
 
 			if proposerData.NumPromises >= majority {
@@ -211,9 +209,8 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 							if acceptReply.Ok {
 								proposerData.NumAccepts++
 							} else {
-								// proposerData.HighestSeenPId = max(proposerData.HighestSeenPId, acceptReply.ARnum)
-								if acceptReply.ARnum > proposerData.HighestSeenPId {
-									proposerData.HighestSeenPId = acceptReply.ARnum
+								if acceptReply.MaxProposalId > proposerData.HighestSeenPId {
+									proposerData.HighestSeenPId = acceptReply.MaxProposalId
 								}
 							}
 						} //no response taken as no
@@ -230,7 +227,6 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 							cargs := &CommitArgs{}
 							cargs.SeqNum = seq
 							cargs.Value = sendval
-
 							var creply CommitReply
 
 							call(paxos.peers[c], "Paxos.Commit", cargs, &creply)
@@ -247,7 +243,7 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 					paxos.mu.Unlock()
 				}
 			} else {
-				//what to do if majority was not reached
+				//If not enough promises were recieved...
 				paxos.mu.Lock()
 				if paxos.dead || paxos.instances[seq].CommittedValue != nil {
 					cont = false
@@ -421,7 +417,7 @@ func (paxos *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
 		reply.Ok = true
 	} else {
 		reply.Ok = false
-		reply.ARnum = paxos.instances[args.SeqNum].HigestProposalId
+		reply.MaxProposalId = paxos.instances[args.SeqNum].HigestProposalId
 	}
 	return nil
 }
