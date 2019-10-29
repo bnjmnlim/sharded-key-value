@@ -87,7 +87,7 @@ func call(srv string, name string, args interface{}, reply interface{}) bool {
 //
 func (paxos *Paxos) Start(seq int, value interface{}) {
 	paxos.mu.Lock()
-	if paxos.instances[seq].committedValue != nil {
+	if paxos.instances[seq].CommittedValue != nil {
 		return
 	}
 	paxos.mu.Unlock()
@@ -114,7 +114,7 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 			proposeWaitGroup.Add(len(paxos.peers))
 			proposerDataLock.Lock()
 			paxos.mu.Lock()
-			proposerData.proposalId = (((proposerData.highestSeenPId / len(paxos.peers)) + 1) * len(paxos.peers)) + paxos.me
+			proposerData.ProposalId = (((proposerData.HighestSeenPId / len(paxos.peers)) + 1) * len(paxos.peers)) + paxos.me
 			doneMap := paxos.highestInstanceByPeer
 			paxos.mu.Unlock()
 			proposerDataLock.Unlock()
@@ -123,10 +123,10 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 				go func(a int) {
 					prepareArgs := &PrepareArgs{}
 					proposerDataLock.Lock()
-					prepareArgs.proposalId = proposerData.proposalId
+					prepareArgs.ProposalId = proposerData.ProposalId
 					proposerDataLock.Unlock()
-					prepareArgs.seqNum = seq
-					prepareArgs.doneMap = doneMap
+					prepareArgs.SeqNum = seq
+					prepareArgs.DoneMap = doneMap
 
 					var preply PrepareReply
 
@@ -134,18 +134,18 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 					proposerDataLock.Lock()
 					if ok {
 						if preply.Ok {
-							if preply.acceptedPId > proposerData.maxAcceptedPId {
-								proposerData.maxAcceptedPId = preply.acceptedPId
-								proposerData.maxPIdAcceptedValue = preply.acceptedValue
+							if preply.AcceptedPId > proposerData.MaxAcceptedPId {
+								proposerData.MaxAcceptedPId = preply.AcceptedPId
+								proposerData.MaxPIdAcceptedValue = preply.AcceptedValue
 							}
-							proposerData.numPromises++
+							proposerData.NumPromises++
 						} else {
-							if preply.committedValue != nil {
+							if preply.CommittedValue != nil {
 								paxos.mu.Lock()
-								//TODO: paxos.instances[prepareArgs.seqNum].committedValue = preply.committedValue
-								var temp = paxos.instances[prepareArgs.seqNum]
-								temp.committedValue = preply.committedValue
-								paxos.instances[prepareArgs.seqNum] = temp
+								//TODO: paxos.instances[prepareArgs.SeqNum].CommittedValue = preply.CommittedValue
+								var temp = paxos.instances[prepareArgs.SeqNum]
+								temp.CommittedValue = preply.CommittedValue
+								paxos.instances[prepareArgs.SeqNum] = temp
 								paxos.mu.Unlock()
 
 								//Notifying other nodes of committed values in case of partition
@@ -154,8 +154,8 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 									for y := 0; y < len(paxos.peers); y++ {
 										go func(c int) {
 											cargs := &CommitArgs{}
-											cargs.seqNum = seq
-											cargs.Value = preply.committedValue
+											cargs.SeqNum = seq
+											cargs.Value = preply.CommittedValue
 
 											var creply CommitReply
 
@@ -164,15 +164,15 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 									}
 								}
 							} else {
-								if preply.maxProposalId > proposerData.highestSeenPId {
-									proposerData.highestSeenPId = preply.maxProposalId
+								if preply.MaxProposalId > proposerData.HighestSeenPId {
+									proposerData.HighestSeenPId = preply.MaxProposalId
 								}
 							}
 						}
 						paxos.mu.Lock()
 						for k := 0; k < len(paxos.peers); k++ {
-							if paxos.highestInstanceByPeer[k] < preply.doneMap[k] {
-								paxos.highestInstanceByPeer[k] = preply.doneMap[k]
+							if paxos.highestInstanceByPeer[k] < preply.DoneMap[k] {
+								paxos.highestInstanceByPeer[k] = preply.DoneMap[k]
 							}
 						}
 						paxos.mu.Unlock()
@@ -185,13 +185,13 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 
 			//done with prepare phase
 
-			if proposerData.numPromises >= majority {
+			if proposerData.NumPromises >= majority {
 				proposerDataLock.Lock()
 				var sendval interface{}
-				if proposerData.maxPIdAcceptedValue == nil {
+				if proposerData.MaxPIdAcceptedValue == nil {
 					sendval = value
 				} else {
-					sendval = proposerData.maxPIdAcceptedValue
+					sendval = proposerData.MaxPIdAcceptedValue
 				}
 				proposerDataLock.Unlock()
 				var acceptWaitGroup sync.WaitGroup
@@ -199,9 +199,9 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 				for x := 0; x < len(paxos.peers); x++ {
 					go func(index int) {
 						acceptArgs := &AcceptArgs{}
-						acceptArgs.proposalId = proposerData.proposalId
-						acceptArgs.seqNum = seq
-						acceptArgs.value = sendval
+						acceptArgs.ProposalId = proposerData.ProposalId
+						acceptArgs.SeqNum = seq
+						acceptArgs.Value = sendval
 
 						var acceptReply AcceptReply
 
@@ -209,11 +209,11 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 						proposerDataLock.Lock()
 						if ok {
 							if acceptReply.Ok {
-								proposerData.numAccepts++
+								proposerData.NumAccepts++
 							} else {
-								// proposerData.highestSeenPId = max(proposerData.highestSeenPId, acceptReply.ARnum)
-								if acceptReply.ARnum > proposerData.highestSeenPId {
-									proposerData.highestSeenPId = acceptReply.ARnum
+								// proposerData.HighestSeenPId = max(proposerData.HighestSeenPId, acceptReply.ARnum)
+								if acceptReply.ARnum > proposerData.HighestSeenPId {
+									proposerData.HighestSeenPId = acceptReply.ARnum
 								}
 							}
 						} //no response taken as no
@@ -223,12 +223,12 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 				}
 				acceptWaitGroup.Wait()
 
-				if proposerData.numAccepts >= majority {
+				if proposerData.NumAccepts >= majority {
 
 					for y := 0; y < len(paxos.peers); y++ {
 						go func(c int) {
 							cargs := &CommitArgs{}
-							cargs.seqNum = seq
+							cargs.SeqNum = seq
 							cargs.Value = sendval
 
 							var creply CommitReply
@@ -239,9 +239,9 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 
 					cont = false
 					paxos.mu.Lock()
-					if paxos.instances[seq].committedValue == nil {
+					if paxos.instances[seq].CommittedValue == nil {
 						temp := paxos.instances[seq]
-						temp.committedValue = sendval
+						temp.CommittedValue = sendval
 						paxos.instances[seq] = temp
 					}
 					paxos.mu.Unlock()
@@ -249,7 +249,7 @@ func (paxos *Paxos) Start(seq int, value interface{}) {
 			} else {
 				//what to do if majority was not reached
 				paxos.mu.Lock()
-				if paxos.dead || paxos.instances[seq].committedValue != nil {
+				if paxos.dead || paxos.instances[seq].CommittedValue != nil {
 					cont = false
 				}
 				paxos.mu.Unlock()
@@ -352,8 +352,8 @@ func (paxos *Paxos) Min() int {
 func (paxos *Paxos) Status(seq int) (bool, interface{}) {
 	paxos.mu.Lock()
 	defer paxos.mu.Unlock()
-	if paxos.instances[seq].committedValue != nil {
-		return true, paxos.instances[seq].committedValue
+	if paxos.instances[seq].CommittedValue != nil {
+		return true, paxos.instances[seq].CommittedValue
 	}
 	return false, nil
 }
@@ -374,37 +374,37 @@ func (paxos *Paxos) Kill() {
 func (paxos *Paxos) Prepare(args *PrepareArgs, reply *PrepareReply) error {
 	paxos.mu.Lock()
 	defer paxos.mu.Unlock()
-	_, ok := paxos.instances[args.seqNum]
+	_, ok := paxos.instances[args.SeqNum]
 	if !ok {
-		paxos.instances[args.seqNum] = AcceptorData{0, 0, nil, nil}
-		if args.seqNum > paxos.maxInstance {
-			paxos.maxInstance = args.seqNum
+		paxos.instances[args.SeqNum] = AcceptorData{0, 0, nil, nil}
+		if args.SeqNum > paxos.maxInstance {
+			paxos.maxInstance = args.SeqNum
 		}
 	}
 
-	if paxos.instances[args.seqNum].committedValue != nil {
+	if paxos.instances[args.SeqNum].CommittedValue != nil {
 		reply.Ok = false
-		reply.committedValue = paxos.instances[args.seqNum].committedValue
+		reply.CommittedValue = paxos.instances[args.SeqNum].CommittedValue
 	} else {
-		if args.proposalId > paxos.instances[args.seqNum].higestProposalId {
-			acceptorData := paxos.instances[args.seqNum]
-			acceptorData.higestProposalId = args.proposalId
-			paxos.instances[args.seqNum] = acceptorData
+		if args.ProposalId > paxos.instances[args.SeqNum].HigestProposalId {
+			acceptorData := paxos.instances[args.SeqNum]
+			acceptorData.HigestProposalId = args.ProposalId
+			paxos.instances[args.SeqNum] = acceptorData
 			reply.Ok = true
-			reply.acceptedPId = acceptorData.acceptedProposalId
-			reply.acceptedValue = acceptorData.acceptedValue
+			reply.AcceptedPId = acceptorData.AcceptedProposalId
+			reply.AcceptedValue = acceptorData.AcceptedValue
 		} else {
 			reply.Ok = false
-			reply.maxProposalId = paxos.instances[args.seqNum].higestProposalId
+			reply.MaxProposalId = paxos.instances[args.SeqNum].HigestProposalId
 		}
 	}
 
 	for k := 0; k < len(paxos.peers); k++ {
-		if paxos.highestInstanceByPeer[k] < args.doneMap[k] {
-			paxos.highestInstanceByPeer[k] = args.doneMap[k]
+		if paxos.highestInstanceByPeer[k] < args.DoneMap[k] {
+			paxos.highestInstanceByPeer[k] = args.DoneMap[k]
 		}
 	}
-	reply.doneMap = paxos.highestInstanceByPeer
+	reply.DoneMap = paxos.highestInstanceByPeer
 	return nil
 }
 
@@ -412,16 +412,16 @@ func (paxos *Paxos) Prepare(args *PrepareArgs, reply *PrepareReply) error {
 func (paxos *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
 	paxos.mu.Lock()
 	defer paxos.mu.Unlock()
-	if args.proposalId >= paxos.instances[args.seqNum].higestProposalId {
-		var acceptorData = paxos.instances[args.seqNum]
-		acceptorData.higestProposalId = args.proposalId
-		acceptorData.acceptedProposalId = args.proposalId
-		acceptorData.acceptedValue = args.value
-		paxos.instances[args.seqNum] = acceptorData
+	if args.ProposalId >= paxos.instances[args.SeqNum].HigestProposalId {
+		var acceptorData = paxos.instances[args.SeqNum]
+		acceptorData.HigestProposalId = args.ProposalId
+		acceptorData.AcceptedProposalId = args.ProposalId
+		acceptorData.AcceptedValue = args.Value
+		paxos.instances[args.SeqNum] = acceptorData
 		reply.Ok = true
 	} else {
 		reply.Ok = false
-		reply.ARnum = paxos.instances[args.seqNum].higestProposalId
+		reply.ARnum = paxos.instances[args.SeqNum].HigestProposalId
 	}
 	return nil
 }
@@ -429,9 +429,9 @@ func (paxos *Paxos) Accept(args *AcceptArgs, reply *AcceptReply) error {
 //handler for commit
 func (paxos *Paxos) Commit(args *CommitArgs, reply *CommitReply) error {
 	paxos.mu.Lock()
-	tmp := paxos.instances[args.seqNum]
-	tmp.committedValue = args.Value
-	paxos.instances[args.seqNum] = tmp
+	tmp := paxos.instances[args.SeqNum]
+	tmp.CommittedValue = args.Value
+	paxos.instances[args.SeqNum] = tmp
 	paxos.mu.Unlock()
 	return nil
 }

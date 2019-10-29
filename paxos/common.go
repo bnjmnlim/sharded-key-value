@@ -1,24 +1,24 @@
 package paxos
 
 type PrepareArgs struct {
-	seqNum     int
-	proposalId int
-	doneMap    map[int]int
+	SeqNum     int
+	ProposalId int
+	DoneMap    map[int]int
 }
 
 type PrepareReply struct {
 	Ok             bool
-	maxProposalId  int
-	acceptedPId    int
-	acceptedValue  interface{}
-	committedValue interface{}
-	doneMap        map[int]int
+	MaxProposalId  int
+	AcceptedPId    int
+	AcceptedValue  interface{}
+	CommittedValue interface{}
+	DoneMap        map[int]int
 }
 
 type AcceptArgs struct {
-	proposalId int
-	value      interface{}
-	seqNum     int
+	ProposalId int
+	Value      interface{}
+	SeqNum     int
 }
 
 type AcceptReply struct {
@@ -27,7 +27,7 @@ type AcceptReply struct {
 }
 
 type CommitArgs struct {
-	seqNum int
+	SeqNum int
 	Value  interface{}
 }
 
@@ -35,17 +35,17 @@ type CommitReply struct {
 }
 
 type ProposerData struct {
-	proposalId          int         //decided num
-	numPromises         int         //number of prepare_ok received
-	highestSeenPId      int         //largest seen Proposal ID from acceptors
-	maxAcceptedPId      int         //highest num from prepare
-	maxPIdAcceptedValue interface{} //value of highest num from prepare
-	numAccepts          int         //number of accept_ok received
+	ProposalId          int         //decided num
+	NumPromises         int         //number of prepare_ok received
+	HighestSeenPId      int         //largest seen Proposal ID from acceptors
+	MaxAcceptedPId      int         //highest num from prepare
+	MaxPIdAcceptedValue interface{} //value of highest num from prepare
+	NumAccepts          int         //number of accept_ok received
 }
 
 type AcceptorData struct {
-	acceptedProposalId int
-	higestProposalId   int
-	acceptedValue      interface{}
-	committedValue     interface{}
+	AcceptedProposalId int
+	HigestProposalId   int
+	AcceptedValue      interface{}
+	CommittedValue     interface{}
 }
